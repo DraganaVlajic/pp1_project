@@ -1,0 +1,262 @@
+package rs.ac.bg.etf.pp1;
+
+import java_cup.runtime.*;
+import rs.ac.bg.etf.pp1.ast.*;
+
+parser code {:
+    	public boolean errorWhileParsing = false;
+
+    	public Symbol errSymbol;
+
+        public void report_fatal_error(String message, Object info) throws java.lang.Exception {
+          done_parsing();
+          report_error(message, cur_token);
+        }
+
+        public void syntax_error(Symbol cur_token) {
+            errorWhileParsing = true;
+            errSymbol = cur_token;
+            //report_error("\nSyntax error", cur_token);
+        }
+
+        public void unrecovered_syntax_error(Symbol cur_token) throws java.lang.Exception {
+            report_fatal_error("Fatal error, parsing cannot continue", cur_token);
+        }
+
+        public void report_error(String message, Object info) {
+        	StringBuilder msg = new StringBuilder(message);
+        	if (info instanceof Symbol)
+                msg.append (" on line ").append(((Symbol)info).left);
+            System.err.println(msg.toString());
+            errorWhileParsing = true;
+        }
+
+        public void report_error_on_curr_token(String message){
+            report_error(message, cur_token);
+        }
+
+        public void report_error_on_err_token(String message){
+            report_error(message, errSymbol);
+        }
+
+:}
+
+scan with {:
+	Symbol s = this.getScanner().next_token();
+	if (s != null) {
+	    String msg = s.toString();
+	    if (s.value != null) {
+	        msg = msg + " " + s.value.toString();
+	    }
+		System.out.println(msg);
+    }
+	return s;
+:}
+
+terminal PROGRAM;
+terminal CURLY_PAREN_LEFT, CURLY_PAREN_RIGHT, SQUARE_PAREN_LEFT, SQUARE_PAREN_RIGHT, PAREN_LEFT, PAREN_RIGHT;
+terminal READ, PRINT, GOTO, NEW;
+terminal EQUALS, PLUS_PLUS, MINUS_MINUS, PLUS, MINUS, MUL, DIV, MOD;
+terminal SEMICOLON, COLON, COMMA;
+terminal CONST, VOID;
+
+terminal String IDENTIFIER;
+terminal Integer CONST_NUM;
+terminal Boolean CONST_BOOL;
+terminal Character CONST_CHAR;
+
+nonterminal Program Program;
+nonterminal ProgramBegin ProgramBegin;
+nonterminal DeclarationBlock DeclarationBlock;
+nonterminal VarDeclaration VarDeclaration;
+nonterminal VarDeclarationList VarDeclarationList;
+nonterminal VarDeclarationSingle VarDeclarationSingle;
+nonterminal ConstDeclaration ConstDeclaration;
+nonterminal ConstDeclarationList ConstDeclarationList;
+nonterminal ConstDeclarationSingle ConstDeclarationSingle;
+nonterminal rs.etf.pp1.symboltable.concepts.Struct Type;
+
+nonterminal MethodDeclarationList MethodDeclarationList;
+nonterminal MethodDeclaration MethodDeclaration;
+nonterminal MethodReturnType MethodReturnType;
+nonterminal FormalParams FormalParams;
+nonterminal FormalParamList FormalParamList;
+nonterminal VarDeclarationMethod VarDeclarationMethod;
+nonterminal FormalParam FormalParam;
+nonterminal Statement Statement;
+nonterminal Statements Statements;
+nonterminal StatementList StatementList;
+nonterminal SingleStatement SingleStatement;
+nonterminal PrintConst PrintConst;
+nonterminal DesignatorStatement DesignatorStatement;
+nonterminal Addop Addop;
+nonterminal Mulop Mulop;
+nonterminal LabelName LabelName;
+
+nonterminal rs.etf.pp1.symboltable.concepts.Struct Factor;
+nonterminal rs.etf.pp1.symboltable.concepts.Struct Expr;
+nonterminal rs.etf.pp1.symboltable.concepts.Struct ExprList;
+nonterminal rs.etf.pp1.symboltable.concepts.Struct Term;
+nonterminal rs.etf.pp1.symboltable.concepts.Obj Designator;
+nonterminal rs.etf.pp1.symboltable.concepts.Obj MethodName;
+
+Program ::= (Program) PROGRAM ProgramBegin:P1 DeclarationBlock:D2 CURLY_PAREN_LEFT MethodDeclarationList:M3 CURLY_PAREN_RIGHT {: RESULT=new Program(P1, D2, M3); RESULT.setLine(P1left); :};
+
+/* Program */
+
+ProgramBegin ::= (ProgramBegin) IDENTIFIER:progName {: RESULT=new ProgramBegin(progName); RESULT.setLine(progNameleft); :};
+
+DeclarationBlock ::= (DeclarationBlockVar) VarDeclaration:V1 DeclarationBlock:D2 {: RESULT=new DeclarationBlockVar(V1, D2); RESULT.setLine(V1left); :}
+                     |
+                     (DeclarationBlockConst) ConstDeclaration:C1 DeclarationBlock:D2 {: RESULT=new DeclarationBlockConst(C1, D2); RESULT.setLine(C1left); :}
+                     |
+                     (DeclarationBlockEmpty) {: RESULT=new DeclarationBlockEmpty(); :} /* epsilon */
+                     ;
+
+VarDeclaration ::= (VarDeclaration) Type:T1 VarDeclarationList:V2 SEMICOLON {: RESULT=new VarDeclaration(T1, V2); RESULT.setLine(T1left); :};
+
+VarDeclarationList ::= (VarDeclarationListElem) VarDeclarationSingle:V1 {: RESULT=new VarDeclarationListElem(V1); RESULT.setLine(V1left); :}
+                       |
+                       (VarDeclarationListMultiple) VarDeclarationSingle:V1 COMMA VarDeclarationList:V2 {: RESULT=new VarDeclarationListMultiple(V1, V2); RESULT.setLine(V1left); :}
+                       ;
+
+VarDeclarationSingle ::= (VarDeclarationSingleVar) IDENTIFIER:varName {: RESULT=new VarDeclarationSingleVar(varName); RESULT.setLine(varNameleft); :}
+                         |
+                         (VarDeclarationSingleArray) IDENTIFIER:varName SQUARE_PAREN_LEFT SQUARE_PAREN_RIGHT {: RESULT=new VarDeclarationSingleArray(varName); RESULT.setLine(varNameleft); :}
+                         ;
+
+ConstDeclaration ::= (ConstDeclaration) CONST Type:T1 ConstDeclarationList:C2 SEMICOLON {: RESULT=new ConstDeclaration(T1, C2); RESULT.setLine(T1left); :};
+
+ConstDeclarationList ::= (ConstDeclarationListElem) ConstDeclarationSingle:C1 {: RESULT=new ConstDeclarationListElem(C1); RESULT.setLine(C1left); :}
+                         |
+                         (ConstDeclarationListMultiple) ConstDeclarationSingle:C1 COMMA ConstDeclarationList:C2 {: RESULT=new ConstDeclarationListMultiple(C1, C2); RESULT.setLine(C1left); :}
+                         ;
+
+ConstDeclarationSingle ::= (ConstDeclarationChar) IDENTIFIER:constName EQUALS CONST_CHAR:constValue {: RESULT=new ConstDeclarationChar(constName, constValue); RESULT.setLine(constNameleft); :}
+                           |
+                           (ConstDeclarationNum) IDENTIFIER:constName EQUALS CONST_NUM:constValue {: RESULT=new ConstDeclarationNum(constName, constValue); RESULT.setLine(constNameleft); :}
+                           |
+                           (ConstDeclarationBool) IDENTIFIER:constName EQUALS CONST_BOOL:constValue {: RESULT=new ConstDeclarationBool(constName, constValue); RESULT.setLine(constNameleft); :}
+                           ;
+
+/* Methods */
+
+MethodDeclarationList ::= (MethodDeclarationListMethod) MethodDeclaration:M1 MethodDeclarationList:M2 {: RESULT=new MethodDeclarationListMethod(M1, M2); RESULT.setLine(M1left); :}
+                          |
+                          (MethodDeclarationListEmpty) {: RESULT=new MethodDeclarationListEmpty(); :} /* epsilon */
+                          ;
+
+MethodDeclaration ::= (MethodDeclaration) MethodReturnType:M1 MethodName:M2 PAREN_LEFT FormalParams:F3 PAREN_RIGHT VarDeclarationMethod:V4 Statements:S5 {: RESULT=new MethodDeclaration(M1, M2, F3, V4, S5); RESULT.setLine(M1left); :};
+
+MethodName ::= (MethodName) IDENTIFIER:methodName {: RESULT=new MethodName(methodName); RESULT.setLine(methodNameleft); :};
+
+MethodReturnType ::= (MethodReturnTypeName) IDENTIFIER:typeName {: RESULT=new MethodReturnTypeName(typeName); RESULT.setLine(typeNameleft); :}
+                     |
+                     (MethodReturnTypeVoid) VOID {: RESULT=new MethodReturnTypeVoid(); :}
+                     ;
+
+FormalParams ::= (FormalParamsPresent) FormalParamList:F1 {: RESULT=new FormalParamsPresent(F1); RESULT.setLine(F1left); :}
+                 |
+                 (FormalParamsEmpty) {: RESULT=new FormalParamsEmpty(); :} /* epsilon */
+                 ;
+
+FormalParamList ::= (FormalParamSingle) FormalParam:F1 {: RESULT=new FormalParamSingle(F1); RESULT.setLine(F1left); :}
+                    |
+                    (FormalParamMultiple) FormalParam:F1 COMMA FormalParamList:F2 {: RESULT=new FormalParamMultiple(F1, F2); RESULT.setLine(F1left); :}
+                    ;
+
+FormalParam ::= (FormalParamType) Type:T1 IDENTIFIER:paramName {: RESULT=new FormalParamType(T1, paramName); RESULT.setLine(T1left); :}
+                |
+                (FormalParamArray) Type:T1 IDENTIFIER:paramName SQUARE_PAREN_LEFT SQUARE_PAREN_RIGHT {: RESULT=new FormalParamArray(T1, paramName); RESULT.setLine(T1left); :}
+                ;
+
+VarDeclarationMethod ::= (VarDeclarationMethodPresent) VarDeclaration:V1 VarDeclarationMethod:V2 {: RESULT=new VarDeclarationMethodPresent(V1, V2); RESULT.setLine(V1left); :}
+                    |
+                    (VarDeclarationMethodEmpty) {: RESULT=new VarDeclarationMethodEmpty(); :} /* epsilon */
+                    ;
+
+/* Method body */
+
+Statement ::= (StatementSingle) SingleStatement:S1 {: RESULT=new StatementSingle(S1); RESULT.setLine(S1left); :}
+              |
+              (StatementWithLabel) LabelName:L1 COLON SingleStatement:S2 {: RESULT=new StatementWithLabel(L1, S2); RESULT.setLine(L1left); :}
+              |
+              (StatementListBase) Statements:S1 {: RESULT=new StatementListBase(S1); RESULT.setLine(S1left); :}
+              ;
+
+LabelName ::= (LabelName) IDENTIFIER:labelName {: RESULT=new LabelName(labelName); RESULT.setLine(labelNameleft); :};
+
+Statements ::= (Statements) CURLY_PAREN_LEFT StatementList:S1 CURLY_PAREN_RIGHT {: RESULT=new Statements(S1); RESULT.setLine(S1left); :};
+
+StatementList ::= (StatementListSingle) Statement:S1 {: RESULT=new StatementListSingle(S1); RESULT.setLine(S1left); :}
+                  |
+                  (StatementListMultiple) Statement:S1 StatementList:S2 {: RESULT=new StatementListMultiple(S1, S2); RESULT.setLine(S1left); :}
+                  ;
+
+SingleStatement ::= (SingleStatementDesignator) DesignatorStatement:D1 SEMICOLON {: RESULT=new SingleStatementDesignator(D1); RESULT.setLine(D1left); :}
+                    |
+                    (SingleStatementRead) READ PAREN_LEFT Designator:D1 PAREN_RIGHT SEMICOLON {: RESULT=new SingleStatementRead(D1); RESULT.setLine(D1left); :}
+                    |
+                    (SingleStatementPrint) PRINT PAREN_LEFT Expr:E1 PrintConst:P2 PAREN_RIGHT SEMICOLON {: RESULT=new SingleStatementPrint(E1, P2); RESULT.setLine(E1left); :}
+                    |
+                    (SingleStatementGoto) GOTO IDENTIFIER:labelName SEMICOLON {: RESULT=new SingleStatementGoto(labelName); RESULT.setLine(labelNameleft); :}
+                    ;
+
+PrintConst ::= (PrintConstPresent) COMMA CONST_NUM:width {: RESULT=new PrintConstPresent(width); RESULT.setLine(widthleft); :}
+               |
+               (PrintConstEmpty) {: RESULT=new PrintConstEmpty(); :} /* Epsilon */
+               ;
+
+DesignatorStatement ::= (DesignatorAssignment) Designator:D1 EQUALS Expr:E2 {: RESULT=new DesignatorAssignment(D1, E2); RESULT.setLine(D1left); :}
+                        |
+                        (DesignatorIncrement) Designator:D1 PLUS_PLUS {: RESULT=new DesignatorIncrement(D1); RESULT.setLine(D1left); :}
+                        |
+                        (DesignatorDecrement) Designator:D1 MINUS_MINUS {: RESULT=new DesignatorDecrement(D1); RESULT.setLine(D1left); :}
+                        ;
+
+Designator ::= (DesignatorIdentifier) IDENTIFIER:name {: RESULT=new DesignatorIdentifier(name); RESULT.setLine(nameleft); :}
+               |
+               (DesignatorArray) Designator:D1 SQUARE_PAREN_LEFT Expr:E2 SQUARE_PAREN_RIGHT {: RESULT=new DesignatorArray(D1, E2); RESULT.setLine(D1left); :}
+               ;
+
+Expr ::= (Expression) ExprList:E1 {: RESULT=new Expression(E1); RESULT.setLine(E1left); :}
+         |
+         (ExpressionMinus) MINUS ExprList:E1 {: RESULT=new ExpressionMinus(E1); RESULT.setLine(E1left); :}
+         ;
+
+ExprList ::= (ExpressionTerm) Term:T1 {: RESULT=new ExpressionTerm(T1); RESULT.setLine(T1left); :}
+             |
+             (ExpressionAddop) Term:T1 Addop:A2 ExprList:E3 {: RESULT=new ExpressionAddop(T1, A2, E3); RESULT.setLine(T1left); :}
+             ;
+
+Addop ::= (AddopPlus) PLUS {: RESULT=new AddopPlus(); :}
+          |
+          (AddopMinus) MINUS {: RESULT=new AddopMinus(); :}
+          ;
+
+Term ::= (TermFactor) Factor:F1 {: RESULT=new TermFactor(F1); RESULT.setLine(F1left); :}
+         |
+         (TermList) Factor:F1 Mulop:M2 Term:T3 {: RESULT=new TermList(F1, M2, T3); RESULT.setLine(F1left); :}
+         ;
+
+Mulop ::= (MulopMul) MUL {: RESULT=new MulopMul(); :}
+          |
+          (MulopDiv) DIV {: RESULT=new MulopDiv(); :}
+          |
+          (MulopMod) MOD {: RESULT=new MulopMod(); :}
+          ;
+
+Factor ::= (FactorDesignator) Designator:D1 {: RESULT=new FactorDesignator(D1); RESULT.setLine(D1left); :}
+           |
+           (FactorNumConst) CONST_NUM:constValue {: RESULT=new FactorNumConst(constValue); RESULT.setLine(constValueleft); :}
+           |
+           (FactorCharConst) CONST_CHAR:constValue {: RESULT=new FactorCharConst(constValue); RESULT.setLine(constValueleft); :}
+           |
+           (FactorBoolConst) CONST_BOOL:constValue {: RESULT=new FactorBoolConst(constValue); RESULT.setLine(constValueleft); :}
+           |
+           (FactorExpr) PAREN_LEFT Expr:E1 PAREN_RIGHT {: RESULT=new FactorExpr(E1); RESULT.setLine(E1left); :}
+           |
+           (FactorNew) NEW Type:T1 SQUARE_PAREN_LEFT Expr:E2 SQUARE_PAREN_RIGHT {: RESULT=new FactorNew(T1, E2); RESULT.setLine(T1left); :}
+           ;
+
+Type ::= (Type) IDENTIFIER:typeName {: RESULT=new Type(typeName); RESULT.setLine(typeNameleft); :};

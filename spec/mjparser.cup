@@ -1,0 +1,242 @@
+package rs.ac.bg.etf.pp1;
+
+import java_cup.runtime.*;
+import rs.ac.bg.etf.pp1.ast.*;
+
+parser code {:
+    	public boolean errorWhileParsing = false;
+
+    	public Symbol errSymbol;
+
+        public void report_fatal_error(String message, Object info) throws java.lang.Exception {
+          done_parsing();
+          report_error(message, cur_token);
+        }
+
+        public void syntax_error(Symbol cur_token) {
+            errorWhileParsing = true;
+            errSymbol = cur_token;
+            //report_error("\nSyntax error", cur_token);
+        }
+
+        public void unrecovered_syntax_error(Symbol cur_token) throws java.lang.Exception {
+            report_fatal_error("Fatal error, parsing cannot continue", cur_token);
+        }
+
+        public void report_error(String message, Object info) {
+        	StringBuilder msg = new StringBuilder(message);
+        	if (info instanceof Symbol)
+                msg.append (" on line ").append(((Symbol)info).left);
+            System.err.println(msg.toString());
+            errorWhileParsing = true;
+        }
+
+        public void report_error_on_curr_token(String message){
+            report_error(message, cur_token);
+        }
+
+        public void report_error_on_err_token(String message){
+            report_error(message, errSymbol);
+        }
+
+:}
+
+scan with {:
+	Symbol s = this.getScanner().next_token();
+	if (s != null) {
+	    String msg = s.toString();
+	    if (s.value != null) {
+	        msg = msg + " " + s.value.toString();
+	    }
+		System.out.println(msg);
+    }
+	return s;
+:}
+
+terminal PROGRAM;
+terminal CURLY_PAREN_LEFT, CURLY_PAREN_RIGHT, SQUARE_PAREN_LEFT, SQUARE_PAREN_RIGHT, PAREN_LEFT, PAREN_RIGHT;
+terminal READ, PRINT, GOTO, NEW;
+terminal EQUALS, PLUS_PLUS, MINUS_MINUS, PLUS, MINUS, MUL, DIV, MOD;
+terminal SEMICOLON, COLON, COMMA;
+terminal CONST, VOID;
+
+terminal String IDENTIFIER;
+terminal Integer CONST_NUM;
+terminal Boolean CONST_BOOL;
+terminal Character CONST_CHAR;
+
+nonterminal Program, ProgramBegin, DeclarationBlock;
+nonterminal VarDeclaration, VarDeclarationList, VarDeclarationSingle;
+nonterminal ConstDeclaration, ConstDeclarationList, ConstDeclarationSingle;
+nonterminal rs.etf.pp1.symboltable.concepts.Struct Type;
+
+nonterminal MethodDeclarationList, MethodDeclaration, MethodReturnType, FormalParams, FormalParamList, VarDeclarationMethod, FormalParam;
+nonterminal Statement, Statements, StatementList, SingleStatement, PrintConst, DesignatorStatement, Addop, Mulop, LabelName;
+
+nonterminal rs.etf.pp1.symboltable.concepts.Struct Factor;
+nonterminal rs.etf.pp1.symboltable.concepts.Struct Expr;
+nonterminal rs.etf.pp1.symboltable.concepts.Struct ExprList;
+nonterminal rs.etf.pp1.symboltable.concepts.Struct Term;
+nonterminal rs.etf.pp1.symboltable.concepts.Obj Designator;
+nonterminal rs.etf.pp1.symboltable.concepts.Obj MethodName;
+
+Program ::= (Program) PROGRAM ProgramBegin DeclarationBlock CURLY_PAREN_LEFT MethodDeclarationList CURLY_PAREN_RIGHT;
+
+/* Program */
+
+ProgramBegin ::= (ProgramBegin) IDENTIFIER:progName;
+
+DeclarationBlock ::= (DeclarationBlockVar) VarDeclaration DeclarationBlock
+                     |
+                     (DeclarationBlockConst) ConstDeclaration DeclarationBlock
+                     |
+                     (DeclarationBlockEmpty) /* epsilon */
+                     ;
+
+VarDeclaration ::= (VarDeclaration) Type VarDeclarationList SEMICOLON;
+
+VarDeclarationList ::= (VarDeclarationListElem) VarDeclarationSingle
+                       |
+                       (VarDeclarationListMultiple) VarDeclarationSingle COMMA VarDeclarationList
+                       ;
+
+VarDeclarationSingle ::= (VarDeclarationSingleVar) IDENTIFIER:varName
+                         |
+                         (VarDeclarationSingleArray) IDENTIFIER:varName SQUARE_PAREN_LEFT SQUARE_PAREN_RIGHT
+                         ;
+
+ConstDeclaration ::= (ConstDeclaration) CONST Type ConstDeclarationList SEMICOLON;
+
+ConstDeclarationList ::= (ConstDeclarationListElem) ConstDeclarationSingle
+                         |
+                         (ConstDeclarationListMultiple) ConstDeclarationSingle COMMA ConstDeclarationList
+                         ;
+
+ConstDeclarationSingle ::= (ConstDeclarationChar) IDENTIFIER:constName EQUALS CONST_CHAR:constValue
+                           |
+                           (ConstDeclarationNum) IDENTIFIER:constName EQUALS CONST_NUM:constValue
+                           |
+                           (ConstDeclarationBool) IDENTIFIER:constName EQUALS CONST_BOOL:constValue
+                           ;
+
+/* Methods */
+
+MethodDeclarationList ::= (MethodDeclarationListMethod) MethodDeclaration MethodDeclarationList
+                          |
+                          (MethodDeclarationListEmpty) /* epsilon */
+                          ;
+
+MethodDeclaration ::= (MethodDeclaration) MethodReturnType MethodName PAREN_LEFT FormalParams PAREN_RIGHT VarDeclarationMethod Statements;
+
+MethodName ::= (MethodName) IDENTIFIER:methodName;
+
+MethodReturnType ::= (MethodReturnTypeName) IDENTIFIER:typeName
+                     |
+                     (MethodReturnTypeVoid) VOID
+                     ;
+
+FormalParams ::= (FormalParamsPresent) FormalParamList
+                 |
+                 (FormalParamsEmpty) /* epsilon */
+                 ;
+
+FormalParamList ::= (FormalParamSingle) FormalParam
+                    |
+                    (FormalParamMultiple) FormalParam COMMA FormalParamList
+                    ;
+
+FormalParam ::= (FormalParamType) Type IDENTIFIER:paramName
+                |
+                (FormalParamArray) Type IDENTIFIER:paramName SQUARE_PAREN_LEFT SQUARE_PAREN_RIGHT
+                ;
+
+VarDeclarationMethod ::= (VarDeclarationMethodPresent) VarDeclaration VarDeclarationMethod
+                    |
+                    (VarDeclarationMethodEmpty) /* epsilon */
+                    ;
+
+/* Method body */
+
+Statement ::= (StatementSingle) SingleStatement
+              |
+              (StatementWithLabel) LabelName COLON SingleStatement
+              |
+              (StatementListBase) Statements
+              ;
+
+LabelName ::= (LabelName) IDENTIFIER:labelName;
+
+Statements ::= (Statements) CURLY_PAREN_LEFT StatementList CURLY_PAREN_RIGHT;
+
+StatementList ::= (StatementListSingle) Statement
+                  |
+                  (StatementListMultiple) Statement StatementList
+                  ;
+
+SingleStatement ::= (SingleStatementDesignator) DesignatorStatement SEMICOLON
+                    |
+                    (SingleStatementRead) READ PAREN_LEFT Designator PAREN_RIGHT SEMICOLON
+                    |
+                    (SingleStatementPrint) PRINT PAREN_LEFT Expr PrintConst PAREN_RIGHT SEMICOLON
+                    |
+                    (SingleStatementGoto) GOTO IDENTIFIER:labelName SEMICOLON
+                    ;
+
+PrintConst ::= (PrintConstPresent) COMMA CONST_NUM:width
+               |
+               (PrintConstEmpty) /* Epsilon */
+               ;
+
+DesignatorStatement ::= (DesignatorAssignment) Designator EQUALS Expr
+                        |
+                        (DesignatorIncrement) Designator PLUS_PLUS
+                        |
+                        (DesignatorDecrement) Designator MINUS_MINUS
+                        ;
+
+Designator ::= (DesignatorIdentifier) IDENTIFIER:name
+               |
+               (DesignatorArray) Designator SQUARE_PAREN_LEFT Expr SQUARE_PAREN_RIGHT
+               ;
+
+Expr ::= (Expression) ExprList
+         |
+         (ExpressionMinus) MINUS ExprList
+         ;
+
+ExprList ::= (ExpressionTerm) Term
+             |
+             (ExpressionAddop) Term Addop ExprList
+             ;
+
+Addop ::= (AddopPlus) PLUS
+          |
+          (AddopMinus) MINUS
+          ;
+
+Term ::= (TermFactor) Factor
+         |
+         (TermList) Factor Mulop Term
+         ;
+
+Mulop ::= (MulopMul) MUL
+          |
+          (MulopDiv) DIV
+          |
+          (MulopMod) MOD
+          ;
+
+Factor ::= (FactorDesignator) Designator
+           |
+           (FactorNumConst) CONST_NUM:constValue
+           |
+           (FactorCharConst) CONST_CHAR:constValue
+           |
+           (FactorBoolConst) CONST_BOOL:constValue
+           |
+           (FactorExpr) PAREN_LEFT Expr PAREN_RIGHT
+           |
+           (FactorNew) NEW Type SQUARE_PAREN_LEFT Expr SQUARE_PAREN_RIGHT
+           ;
+
+Type ::= (Type) IDENTIFIER:typeName;
